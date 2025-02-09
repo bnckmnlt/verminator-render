@@ -1,13 +1,12 @@
 import { serve } from "@hono/node-server";
 
 import app from "./app";
+import "./lib/broker-client";
 import env from "./env";
 
-const port = Number(env.PORT || 3000);
-// eslint-disable-next-line no-console
-console.log(`Server is running on http://localhost:${port}`);
+const PORT = Number(env.PORT || 3000);
 
-serve({
-  fetch: app.fetch,
-  port,
+serve({ fetch: app.fetch, port: PORT }, () => {
+  // eslint-disable-next-line no-console
+  console.log(`🚀 Server running on PORT: ${PORT}`);
 });
