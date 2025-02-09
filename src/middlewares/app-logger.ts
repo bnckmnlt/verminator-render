@@ -1,7 +1,8 @@
-import env from "@/env";
 import { pinoLogger } from "hono-pino";
 import pino from "pino";
 import pretty from "pino-pretty";
+
+import env from "@/env";
 
 export function appLogger() {
   return pinoLogger({
