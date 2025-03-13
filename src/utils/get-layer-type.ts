@@ -1,4 +1,4 @@
-import { layerType } from "@/db/schema/schema";
+import { layerType } from "@/db/schema/sensor-readings";
 
 // eslint-disable-next-line antfu/top-level-function
 export const getLayerType = (layer: string): typeof layerType.enumValues[number] => {

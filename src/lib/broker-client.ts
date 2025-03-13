@@ -1,8 +1,8 @@
 /* eslint-disable no-console */
 import mqtt from "mqtt";
 
-import db from "@/db";
-import sensorReadings from "@/db/schema/schema";
+import db from "@/db/index";
+import sensorReadings from "@/db/schema/sensor-readings";
 import env from "@/env";
 import { getLayerType } from "@/utils/get-layer-type";
 
@@ -62,6 +62,7 @@ client.on("message", async (topic: string, message) => {
       layer: layerEnum,
       readings: parsedMessage,
       createdAt: new Date().toISOString(),
+      sensorScheduleId: 1,
     });
 
     lastStoredTimestamps[layer] = currentTime;
