@@ -8,7 +8,9 @@ import { getLayerType } from "@/utils/get-layer-type";
 
 import { brokerOptions, lastStoredTimestamps } from "./constants";
 
-const mqttTopics = ["system/status", "layer/bedding", "layer/compost", "layer/fluid"];
+const mqttTopics = ["system/status", "layer/bedding", "layer/compost", "layer/fluid", "system/current_cycle"];
+
+let currentCycle: number = 1;
 
 const client = mqtt.connect(env.HIVEMQ_CLUSTER_URL, brokerOptions);
 
@@ -43,6 +45,12 @@ client.on("message", async (topic: string, message) => {
     "layer/fluid": "fluid",
   };
 
+  if (topic === "system/current_cycle") {
+    currentCycle = message.toString() === "1" ? 1 : 0;
+
+    return;
+  }
+
   const layer = layerMap[topic];
   if (!layer)
     return;
@@ -62,7 +70,7 @@ client.on("message", async (topic: string, message) => {
       layer: layerEnum,
       readings: parsedMessage,
       createdAt: new Date().toISOString(),
-      sensorScheduleId: 1,
+      sensorScheduleId: currentCycle,
     });
 
     lastStoredTimestamps[layer] = currentTime;
