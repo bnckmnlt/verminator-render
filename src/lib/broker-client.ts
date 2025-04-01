@@ -39,17 +39,46 @@ client.on("message", async (topic: string, message) => {
     return;
   }
 
+  switch (topic) {
+    case "system/current_cycle":
+      handleCurrentCycle(parsedMessage);
+      break;
+
+    case "layer/bedding":
+    case "layer/compost":
+    case "layer/fluid":
+      handleLayerData(topic, parsedMessage);
+      break;
+
+    default:
+      console.warn(`⚠️ Unhandled topic: ${topic}`);
+  }
+});
+
+/**
+ * Handles updating the current cycle number.
+ */
+function handleCurrentCycle(parsedMessage: any) {
+  const cycleNumber = Number(parsedMessage);
+
+  if (!isNaN(cycleNumber) && cycleNumber > 0) {
+    currentCycle = cycleNumber;
+    console.log(`🔄 Updated current cycle: ${currentCycle}`);
+  }
+  else {
+    console.error(`❌ Invalid cycle number received: ${parsedMessage}`);
+  }
+}
+
+/**
+ * Handles storing layer sensor data.
+ */
+async function handleLayerData(topic: string, parsedMessage: any) {
   const layerMap: { [key: string]: string } = {
     "layer/bedding": "bedding",
     "layer/compost": "compost",
     "layer/fluid": "fluid",
   };
-
-  if (topic === "system/current_cycle") {
-    currentCycle = Number.parseInt(message.toString());
-
-    return;
-  }
 
   const layer = layerMap[topic];
   if (!layer)
@@ -59,7 +88,7 @@ client.on("message", async (topic: string, message) => {
   const lastStoredTime = lastStoredTimestamps[layer] || 0;
 
   if (currentTime - lastStoredTime < 300000) {
-    console.log(`⏳ Skipping storing for ${layer} layer, last stored less than 30 seconds ago.`);
+    console.log(`⏳ Skipping storing for ${layer} layer, last stored less than 5 minutes ago.`);
     return;
   }
 
@@ -79,7 +108,7 @@ client.on("message", async (topic: string, message) => {
   catch (error) {
     console.error("❌ Error storing sensor data:", error);
   }
-});
+}
 
 client.on("reconnect", () => {
   console.log("🔄 Reconnecting to broker...");
