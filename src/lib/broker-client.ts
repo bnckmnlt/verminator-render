@@ -46,7 +46,7 @@ client.on("message", async (topic: string, message) => {
   };
 
   if (topic === "system/current_cycle") {
-    currentCycle = message.toString() === "1" ? 1 : 0;
+    currentCycle = Number.parseInt(message.toString());
 
     return;
   }
@@ -58,7 +58,7 @@ client.on("message", async (topic: string, message) => {
   const currentTime = Date.now();
   const lastStoredTime = lastStoredTimestamps[layer] || 0;
 
-  if (currentTime - lastStoredTime < 30000) {
+  if (currentTime - lastStoredTime < 300000) {
     console.log(`⏳ Skipping storing for ${layer} layer, last stored less than 30 seconds ago.`);
     return;
   }
