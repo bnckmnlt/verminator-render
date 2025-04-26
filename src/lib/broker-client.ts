@@ -55,13 +55,10 @@ client.on("message", async (topic: string, message) => {
   }
 });
 
-/**
- * Handles updating the current cycle number.
- */
 function handleCurrentCycle(parsedMessage: any) {
   const cycleNumber = Number(parsedMessage);
 
-  if (!isNaN(cycleNumber) && cycleNumber > 0) {
+  if (!Number.isNaN(cycleNumber) && cycleNumber > 0) {
     currentCycle = cycleNumber;
     console.log(`🔄 Updated current cycle: ${currentCycle}`);
   }
@@ -70,9 +67,6 @@ function handleCurrentCycle(parsedMessage: any) {
   }
 }
 
-/**
- * Handles storing layer sensor data.
- */
 async function handleLayerData(topic: string, parsedMessage: any) {
   const layerMap: { [key: string]: string } = {
     "layer/bedding": "bedding",
