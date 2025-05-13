@@ -2,7 +2,7 @@ import { relations } from "drizzle-orm";
 import { boolean, integer, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
 
-import compostSchedule from "./compost-schedule";
+import compostSchedule from "./compost-cycle";
 
 export const scheduleStatus = pgEnum("schedule_status", ["initial", "active", "ready", "released"]);
 
