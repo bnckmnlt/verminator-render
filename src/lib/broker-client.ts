@@ -25,21 +25,14 @@ const client = mqtt.connect(brokerOptions);
 
 client.on("connect", () => {
   console.log("✅ Connected to MQTT broker");
-
   client.subscribe(mqttTopics, (err) => {
-    if (err) {
-      console.error("❌ Subscription error:", err.message);
-    }
-    else {
-      console.log("📡 Subscribed to topics:", mqttTopics.join(", "));
-    }
+    if (err) console.error("❌ Subscription error:", err.message);
+    else console.log("📡 Subscribed to topics:", mqttTopics.join(", "));
   });
 });
 
 client.on("message", async (topic, messageBuffer) => {
   const rawMessage = messageBuffer.toString();
-  // console.log(`📩 ${topic}: ${rawMessage}`);
-
   try {
     if (topic === "system/status") {
       handleSystemStatus(rawMessage);
@@ -48,34 +41,25 @@ client.on("message", async (topic, messageBuffer) => {
 
     const parsed = JSON.parse(rawMessage);
 
-    if (topic === "system/current_cycle") {
-      handleCurrentCycle(parsed);
+    switch (topic) {
+      case "system/current_cycle":
+        handleCurrentCycle(parsed);
+        break;
+
+      case "layer/bedding":
+      case "layer/compost":
+      case "layer/fluid":
+        await handleLayerData(topic, parsed);
+        break;
+
+      case "layer/worms":
+        await handleWormData(parsed);
+        break;
+
+      default:
+        console.warn(`⚠️ Unhandled topic: ${topic}`);
     }
-    else if (
-      topic === "layer/bedding"
-      || topic === "layer/compost"
-      || topic === "layer/fluid"
-    ) {
-      await handleLayerData(topic, parsed);
-    }
-    else if (topic === "layer/worms") {
-      const wormData = {
-        wormScheduleId: currentCycle,
-        avgTemp: parsed.avg_temp,
-        minTemp: parsed.min_temp,
-        maxTemp: parsed.max_temp,
-        thermalSpread: parsed.thermal_spread,
-        activityLevel: parsed.activity_level,
-        hotspot: { x: parsed.hotspot[0], y: parsed.hotspot[1] },
-        zones: parsed.zones,
-      };
-      await handleWormActivityData(wormData);
-    }
-    else {
-      console.warn(`⚠️ Unhandled topic: ${topic}`);
-    }
-  }
-  catch (err) {
+  } catch (err) {
     console.error(`❌ Failed to handle message on topic ${topic}:`, err);
   }
 });
@@ -85,24 +69,21 @@ function handleCurrentCycle(value: any) {
   if (!Number.isNaN(cycle) && cycle > 0) {
     currentCycle = cycle;
     console.log(`🔄 Current cycle updated: ${currentCycle}`);
-  }
-  else {
+  } else {
     console.warn(`⚠️ Invalid cycle value: ${value}`);
   }
 }
 
 function handleSystemStatus(status: string) {
-  const cleanStatus = status.trim().toLowerCase();
-  if (cleanStatus === "active") {
+  const clean = status.trim().toLowerCase();
+  if (clean === "active") {
     isActive = true;
     console.log("✅ System is now active");
-  }
-  else if (cleanStatus === "inactive") {
+  } else if (clean === "inactive") {
     isActive = false;
     console.log("❌ System is now inactive");
-  }
-  else {
-    console.warn(`⚠️ Unknown system status: ${cleanStatus}`);
+  } else {
+    console.warn(`⚠️ Unknown system status: ${clean}`);
   }
 }
 
@@ -117,77 +98,89 @@ async function handleLayerData(topic: string, data: any) {
     "layer/compost": "compost",
     "layer/fluid": "fluid",
   } as const;
-
-  const layer = topic in layerMap ? layerMap[topic as keyof typeof layerMap] : undefined;
-
-  if (!layer)
-    return;
-
-  if (!isActive) {
-    console.log(`⏸ Skipped storing: system inactive (${layer})`);
-    return;
-  }
+  const layer = layerMap[topic as keyof typeof layerMap];
+  if (!layer) return;
 
   const now = Date.now();
-
   try {
     const latest = await db.query.sensorReadings.findFirst({
-      where: (sensorReadings, { eq }) => eq(sensorReadings.layer, getLayerType(layer)),
-      orderBy: (sensorReadings, { desc }) => [desc(sensorReadings.createdAt)],
+      where: (sr, { eq }) => eq(sr.layer, getLayerType(layer)),
+      orderBy: (sr, { desc }) => [desc(sr.createdAt)],
     });
-
     if (latest) {
-      const lastCreatedAt = new Date(latest.createdAt).getTime();
-
-      if (now - lastCreatedAt < 5 * 60 * 1000) {
-        console.log(`⏳ Skipped storing: ${layer} last stored at ${formatDateLog(latest.createdAt)}`);
+      const last = new Date(latest.createdAt).getTime();
+      if (now - last < 5 * 60 * 1000) {
+        console.log(
+          `⏳ Skipped storing: ${layer} last stored at ${formatDateLog(
+            latest.createdAt
+          )}`
+        );
         return;
       }
     }
 
-    // Insert new reading
     await db.insert(sensorReadings).values({
       layer: getLayerType(layer),
       readings: data,
       createdAt: new Date().toISOString(),
       sensorScheduleId: currentCycle,
     });
-
     console.log(`✅ Stored ${layer} data to database`);
-  }
-  catch (err) {
+  } catch (err) {
     console.error(`❌ Error saving ${layer} data:`, err);
   }
 }
 
-async function handleWormActivityData(data: any) {
+async function handleWormData(parsed: any) {
   if (!isActive) {
-    console.log(`⏸ Skipped storing: system inactive (worms monitoring)`);
+    console.log("⏸ Skipped storing: system inactive (worms)");
     return;
   }
 
-  const now = Date.now();
+  // Validate hotspot array
+  if (
+    !parsed.hotspot ||
+    !Array.isArray(parsed.hotspot) ||
+    parsed.hotspot.length < 2 ||
+    typeof parsed.hotspot[0] !== "number" ||
+    typeof parsed.hotspot[1] !== "number"
+  ) {
+    console.warn("⚠️ Invalid hotspot data, skipping worm activity store:", parsed.hotspot);
+    return;
+  }
 
+  const wormRecord = {
+    wormScheduleId: currentCycle,
+    avgTemp: parsed.avg_temp,
+    minTemp: parsed.min_temp,
+    maxTemp: parsed.max_temp,
+    thermalSpread: parsed.thermal_spread,
+    activityLevel: parsed.activity_level,
+    hotspot: { x: parsed.hotspot[0], y: parsed.hotspot[1] },
+    zones: parsed.zones,
+  };
+
+  const now = Date.now();
   try {
     const latest = await db.query.wormActivity.findFirst({
-      orderBy: (wormActivity, { desc }) => [desc(wormActivity.createdAt)],
+      orderBy: (wa, { desc }) => [desc(wa.createdAt)],
     });
-
     if (latest) {
-      const lastCreatedAt = new Date(latest.createdAt).getTime();
-
-      if (now - lastCreatedAt < 5 * 60 * 1000) {
-        console.log(`⏳ Skipped storing: worm activity last stored at ${formatDateLog(latest.createdAt)}`);
+      const last = new Date(latest.createdAt).getTime();
+      if (now - last < 5 * 60 * 1000) {
+        console.log(
+          `⏳ Skipped storing: worm activity last stored at ${formatDateLog(
+            latest.createdAt
+          )}`
+        );
         return;
       }
     }
 
-    await db.insert(wormActivity).values(data);
-
-    console.log(`✅ Stored worm activity data to database`);
-  }
-  catch (err) {
-    console.error(`❌ Error saving worm activity data:`, err);
+    await db.insert(wormActivity).values(wormRecord);
+    console.log("✅ Stored worm activity data to database");
+  } catch (err) {
+    console.error("❌ Error saving worm activity data:", err);
   }
 }
 
@@ -197,7 +190,7 @@ client.on("disconnect", () => {
   isActive = false;
 });
 client.on("offline", () => console.log("⚠️ MQTT client offline"));
-client.on("error", err => console.error("❌ MQTT error:", err.message));
+client.on("error", (err) => console.error("❌ MQTT error:", err.message));
 client.on("close", () => console.log("⚠️ Connection closed"));
 
 export default client;
