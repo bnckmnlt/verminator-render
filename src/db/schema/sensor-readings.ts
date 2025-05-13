@@ -1,12 +1,14 @@
 import { relations } from "drizzle-orm";
-import { integer, jsonb, pgEnum, pgTable, serial, timestamp } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgEnum, pgTable, serial, timestamp } from "drizzle-orm/pg-core";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 
-import compostCycle from "./compost-cycle";
+import compostSchedule from "./compost-cycle";
 
 export const layerType = pgEnum("layer_type", ["bedding", "compost", "fluid"]);
 
 export const sensorReadings = pgTable("sensor_readings", {
   id: serial("id").primaryKey(),
+  sensorScheduleId: integer("sensor_schedule_id"),
   layer: layerType("layer").notNull(),
   readings: jsonb("readings").notNull(),
   createdAt: timestamp("created_at", {
@@ -16,14 +18,32 @@ export const sensorReadings = pgTable("sensor_readings", {
   })
     .defaultNow()
     .notNull(),
-  sensorScheduleId: integer("sensor_schedule_id"),
-});
+}, table => [
+  index("sensor_schedule_id_idx").on(table.sensorScheduleId),
+  index("layer_idx").on(table.layer),
+  index("created_at_idx").on(table.createdAt),
+]);
 
 export const sensorReadingsRelations = relations(sensorReadings, ({ one }) => ({
-  sensorScheduleId: one(compostCycle, {
+  sensorSchedule: one(compostSchedule, {
     fields: [sensorReadings.sensorScheduleId],
-    references: [compostCycle.id],
+    references: [compostSchedule.id],
   }),
 }));
+
+export const selectSensorReadingsSchema = createSelectSchema(sensorReadings);
+
+export const insertSensorReadingsSchema = createInsertSchema(sensorReadings)
+  .required({
+    sensorScheduleId: true,
+    layer: true,
+    readings: true,
+  })
+  .omit({
+    id: true,
+    createdAt: true,
+  });
+
+export const patchSensorReadingsSchema = insertSensorReadingsSchema.partial();
 
 export default sensorReadings;
