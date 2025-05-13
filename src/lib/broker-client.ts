@@ -26,7 +26,8 @@ const client = mqtt.connect(brokerOptions);
 client.on("connect", () => {
   console.log("✅ Connected to MQTT broker");
   client.subscribe(mqttTopics, (err) => {
-    if (err) console.error("❌ Subscription error:", err.message);
+    if (err)
+      console.error("❌ Subscription error:", err.message);
     else console.log("📡 Subscribed to topics:", mqttTopics.join(", "));
   });
 });
@@ -59,7 +60,8 @@ client.on("message", async (topic, messageBuffer) => {
       default:
         console.warn(`⚠️ Unhandled topic: ${topic}`);
     }
-  } catch (err) {
+  }
+  catch (err) {
     console.error(`❌ Failed to handle message on topic ${topic}:`, err);
   }
 });
@@ -69,7 +71,8 @@ function handleCurrentCycle(value: any) {
   if (!Number.isNaN(cycle) && cycle > 0) {
     currentCycle = cycle;
     console.log(`🔄 Current cycle updated: ${currentCycle}`);
-  } else {
+  }
+  else {
     console.warn(`⚠️ Invalid cycle value: ${value}`);
   }
 }
@@ -79,10 +82,12 @@ function handleSystemStatus(status: string) {
   if (clean === "active") {
     isActive = true;
     console.log("✅ System is now active");
-  } else if (clean === "inactive") {
+  }
+  else if (clean === "inactive") {
     isActive = false;
     console.log("❌ System is now inactive");
-  } else {
+  }
+  else {
     console.warn(`⚠️ Unknown system status: ${clean}`);
   }
 }
@@ -99,7 +104,8 @@ async function handleLayerData(topic: string, data: any) {
     "layer/fluid": "fluid",
   } as const;
   const layer = layerMap[topic as keyof typeof layerMap];
-  if (!layer) return;
+  if (!layer)
+    return;
 
   const now = Date.now();
   try {
@@ -112,8 +118,8 @@ async function handleLayerData(topic: string, data: any) {
       if (now - last < 5 * 60 * 1000) {
         console.log(
           `⏳ Skipped storing: ${layer} last stored at ${formatDateLog(
-            latest.createdAt
-          )}`
+            latest.createdAt,
+          )}`,
         );
         return;
       }
@@ -126,7 +132,8 @@ async function handleLayerData(topic: string, data: any) {
       sensorScheduleId: currentCycle,
     });
     console.log(`✅ Stored ${layer} data to database`);
-  } catch (err) {
+  }
+  catch (err) {
     console.error(`❌ Error saving ${layer} data:`, err);
   }
 }
@@ -137,13 +144,12 @@ async function handleWormData(parsed: any) {
     return;
   }
 
-  // Validate hotspot array
   if (
-    !parsed.hotspot ||
-    !Array.isArray(parsed.hotspot) ||
-    parsed.hotspot.length < 2 ||
-    typeof parsed.hotspot[0] !== "number" ||
-    typeof parsed.hotspot[1] !== "number"
+    !parsed.hotspot
+    || !Array.isArray(parsed.hotspot)
+    || parsed.hotspot.length < 2
+    || typeof parsed.hotspot[0] !== "number"
+    || typeof parsed.hotspot[1] !== "number"
   ) {
     console.warn("⚠️ Invalid hotspot data, skipping worm activity store:", parsed.hotspot);
     return;
@@ -170,8 +176,8 @@ async function handleWormData(parsed: any) {
       if (now - last < 5 * 60 * 1000) {
         console.log(
           `⏳ Skipped storing: worm activity last stored at ${formatDateLog(
-            latest.createdAt
-          )}`
+            latest.createdAt,
+          )}`,
         );
         return;
       }
@@ -179,7 +185,8 @@ async function handleWormData(parsed: any) {
 
     await db.insert(wormActivity).values(wormRecord);
     console.log("✅ Stored worm activity data to database");
-  } catch (err) {
+  }
+  catch (err) {
     console.error("❌ Error saving worm activity data:", err);
   }
 }
@@ -190,7 +197,7 @@ client.on("disconnect", () => {
   isActive = false;
 });
 client.on("offline", () => console.log("⚠️ MQTT client offline"));
-client.on("error", (err) => console.error("❌ MQTT error:", err.message));
+client.on("error", err => console.error("❌ MQTT error:", err.message));
 client.on("close", () => console.log("⚠️ Connection closed"));
 
 export default client;
