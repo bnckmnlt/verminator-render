@@ -118,7 +118,8 @@ async function handleLayerData(topic: string, data: any) {
     "layer/fluid": "fluid",
   } as const;
 
-  const layer = layerMap[topic];
+  const layer = topic in layerMap ? layerMap[topic as keyof typeof layerMap] : undefined;
+
   if (!layer)
     return;
 
