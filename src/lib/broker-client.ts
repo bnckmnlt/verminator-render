@@ -11,11 +11,11 @@ import { brokerOptions } from "./constants";
 
 const mqttTopics = [
   "system/status",
+  "system/current_cycle",
   "layer/bedding",
   "layer/compost",
   "layer/fluid",
   "layer/worms",
-  "system/current_cycle",
 ];
 
 let currentCycle = 1;
@@ -83,7 +83,7 @@ function handleSystemStatus(status: string) {
     isActive = true;
     console.log("✅ System is now active");
   }
-  else if (clean === "inactive") {
+  else if (clean === "idle" || clean === "feeding") {
     isActive = false;
     console.log("❌ System is now inactive");
   }
