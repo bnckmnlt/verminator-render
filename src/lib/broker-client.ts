@@ -1,17 +1,22 @@
 /* eslint-disable no-console */
+import { sql } from "drizzle-orm";
 import mqtt from "mqtt";
 
 import db from "@/db/index";
-import { wormActivity } from "@/db/schema";
+import { readingLog, wormActivity } from "@/db/schema";
 import sensorReadings from "@/db/schema/sensor-readings";
 import { formatDateLog } from "@/utils/format-date-log";
+import { handleRelayFeedback } from "@/utils/get-and-publish-feedback";
 import { getLayerType } from "@/utils/get-layer-type";
+import { parseLogSeverity } from "@/utils/get-log-type";
+import { parsePayloadDefault } from "@/utils/parse-payload";
 
 import { brokerOptions } from "./constants";
 
 const mqttTopics = [
   "system/status",
   "system/current_cycle",
+  "system/log",
   "layer/bedding",
   "layer/compost",
   "layer/fluid",
@@ -34,28 +39,34 @@ client.on("connect", () => {
 
 client.on("message", async (topic, messageBuffer) => {
   const rawMessage = messageBuffer.toString();
+
   try {
     if (topic === "system/status") {
       handleSystemStatus(rawMessage);
       return;
     }
 
-    const parsed = JSON.parse(rawMessage);
-
     switch (topic) {
       case "system/current_cycle":
+      { const parsed = JSON.parse(rawMessage);
         handleCurrentCycle(parsed);
+        break; }
+
+      case "system/log":
+        handleSystemLog(rawMessage);
         break;
 
       case "layer/bedding":
       case "layer/compost":
       case "layer/fluid":
+      { const parsed = JSON.parse(rawMessage);
         await handleLayerData(topic, parsed);
-        break;
+        break; }
 
       case "layer/worms":
+      { const parsed = JSON.parse(rawMessage);
         await handleWormData(parsed);
-        break;
+        break; }
 
       default:
         console.warn(`⚠️ Unhandled topic: ${topic}`);
@@ -65,6 +76,28 @@ client.on("message", async (topic, messageBuffer) => {
     console.error(`❌ Failed to handle message on topic ${topic}:`, err);
   }
 });
+
+async function handleSystemLog(message: any) {
+  const result = parsePayloadDefault(message);
+  const severity = parseLogSeverity(result.type);
+
+  await db.execute(sql`
+    SELECT setval(
+      pg_get_serial_sequence('reading_log', 'id'),
+      (SELECT MAX(id) FROM reading_log)
+    );
+  `);
+
+  await db.insert(readingLog).values({
+    eventSeverity: severity,
+    eventMessage: result.content,
+    createdAt: new Date().toISOString(),
+  });
+
+  console.log(`✅ Stored system log successfully`);
+
+  handleRelayFeedback(result.content, client);
+}
 
 function handleCurrentCycle(value: any) {
   const cycle = Number(value);
@@ -125,6 +158,13 @@ async function handleLayerData(topic: string, data: any) {
       }
     }
 
+    await db.execute(sql`
+      SELECT setval(
+        pg_get_serial_sequence('sensor_readings', 'id'),
+        (SELECT MAX(id) FROM sensor_readings)
+      );
+    `);
+
     await db.insert(sensorReadings).values({
       layer: getLayerType(layer),
       readings: data,
@@ -182,6 +222,13 @@ async function handleWormData(parsed: any) {
         return;
       }
     }
+
+    await db.execute(sql`
+      SELECT setval(
+        pg_get_serial_sequence('worm_activity', 'id'),
+        (SELECT MAX(id) FROM worm_activity)
+      );
+    `);
 
     await db.insert(wormActivity).values(wormRecord);
     console.log("✅ Stored worm activity data to database");

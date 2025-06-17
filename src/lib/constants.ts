@@ -19,3 +19,15 @@ export const brokerOptions: IClientOptions = {
 export const STORE_INTERVAL_MS = 30 * 1000;
 
 export const lastStoredTimestamps: { [key: string]: number } = {};
+
+export enum LogSeverity {
+  INFO = "info",
+  WARN = "warn",
+  ERROR = "error",
+  FATAL = "fatal",
+}
+
+export interface LogEntry {
+  type: string;
+  content: string;
+}
