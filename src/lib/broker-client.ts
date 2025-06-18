@@ -81,6 +81,8 @@ async function handleSystemLog(message: any) {
   const result = parsePayloadDefault(message);
   const severity = parseLogSeverity(result.type);
 
+  handleRelayFeedback(result.content, client);
+
   await db.execute(sql`
     SELECT setval(
       pg_get_serial_sequence('reading_log', 'id'),
@@ -95,8 +97,6 @@ async function handleSystemLog(message: any) {
   });
 
   console.log(`✅ Stored system log successfully`);
-
-  handleRelayFeedback(result.content, client);
 }
 
 function handleCurrentCycle(value: any) {
