@@ -11,11 +11,12 @@ import { getLayerType } from "@/utils/get-layer-type";
 import { parseLogSeverity } from "@/utils/get-log-type";
 import { parsePayloadDefault } from "@/utils/parse-payload";
 
+import type { SystemSettings } from "./types";
+
 import { brokerOptions } from "./constants";
 
 const mqttTopics = [
-  "system/status",
-  "system/current_cycle",
+  "system/settings",
   "system/log",
   "layer/bedding",
   "layer/compost",
@@ -23,8 +24,12 @@ const mqttTopics = [
   "layer/worms",
 ];
 
-let currentCycle = 1;
-let isActive = false;
+let systemStatus: SystemSettings = {
+  id: 0,
+  status: false,
+  reading_interval: 0,
+  refresh_rate: 0,
+};
 
 const client = mqtt.connect(brokerOptions);
 
@@ -41,17 +46,12 @@ client.on("message", async (topic, messageBuffer) => {
   const rawMessage = messageBuffer.toString();
 
   try {
-    if (topic === "system/status") {
-      handleSystemStatus(rawMessage);
+    if (topic === "system/settings") {
+      handleSystemSettings(rawMessage);
       return;
     }
 
     switch (topic) {
-      case "system/current_cycle":
-      { const parsed = JSON.parse(rawMessage);
-        handleCurrentCycle(parsed);
-        break; }
-
       case "system/log":
         handleSystemLog(rawMessage);
         break;
@@ -77,6 +77,31 @@ client.on("message", async (topic, messageBuffer) => {
   }
 });
 
+function handleSystemSettings(rawMessage: string) {
+  try {
+    const payload = JSON.parse(rawMessage);
+
+    if (typeof payload.id !== "undefined") {
+      systemStatus.id = Number(payload.id);
+    }
+
+    if (typeof payload.status === "string") {
+      systemStatus.status = payload.status === "active";
+    }
+
+    if (typeof payload.reading_interval !== "undefined") {
+      systemStatus.reading_interval = Number(payload.reading_interval);
+    }
+
+    if (typeof payload.refresh_rate === "undefined") {
+      systemStatus.refresh_rate = Number(payload.refresh_rate);
+    }
+  }
+  catch (error) {
+    console.error("Invalid system status message:", error);
+  }
+}
+
 async function handleSystemLog(message: any) {
   const result = parsePayloadDefault(message);
   const severity = parseLogSeverity(result.type);
@@ -99,34 +124,8 @@ async function handleSystemLog(message: any) {
   console.log(`✅ Stored system log successfully`);
 }
 
-function handleCurrentCycle(value: any) {
-  const cycle = Number(value);
-  if (!Number.isNaN(cycle) && cycle > 0) {
-    currentCycle = cycle;
-    console.log(`🔄 Current cycle updated: ${currentCycle}`);
-  }
-  else {
-    console.warn(`⚠️ Invalid cycle value: ${value}`);
-  }
-}
-
-function handleSystemStatus(status: string) {
-  const clean = status.trim().toLowerCase();
-  if (clean === "active") {
-    isActive = true;
-    console.log("✅ System is now active");
-  }
-  else if (clean === "idle" || clean === "feeding") {
-    isActive = false;
-    console.log("❌ System is now inactive");
-  }
-  else {
-    console.warn(`⚠️ Unknown system status: ${clean}`);
-  }
-}
-
 async function handleLayerData(topic: string, data: any) {
-  if (!isActive) {
+  if (!systemStatus) {
     console.log(`⏸ Skipped storing: system inactive (${topic})`);
     return;
   }
@@ -169,7 +168,7 @@ async function handleLayerData(topic: string, data: any) {
       layer: getLayerType(layer),
       readings: data,
       createdAt: new Date().toISOString(),
-      sensorScheduleId: currentCycle,
+      sensorScheduleId: systemStatus.id,
     });
     console.log(`✅ Stored ${layer} data to database`);
   }
@@ -179,7 +178,7 @@ async function handleLayerData(topic: string, data: any) {
 }
 
 async function handleWormData(parsed: any) {
-  if (!isActive) {
+  if (!systemStatus) {
     console.log("⏸ Skipped storing: system inactive (worms)");
     return;
   }
@@ -196,7 +195,7 @@ async function handleWormData(parsed: any) {
   }
 
   const wormRecord = {
-    wormScheduleId: currentCycle,
+    wormScheduleId: systemStatus.id,
     avgTemp: parsed.avg_temp,
     minTemp: parsed.min_temp,
     maxTemp: parsed.max_temp,
@@ -241,7 +240,7 @@ async function handleWormData(parsed: any) {
 client.on("reconnect", () => console.log("🔄 Reconnecting to broker..."));
 client.on("disconnect", () => {
   console.log("🚫 Disconnected from broker");
-  isActive = false;
+  systemStatus.status = false;
 });
 client.on("offline", () => console.log("⚠️ MQTT client offline"));
 client.on("error", err => console.error("❌ MQTT error:", err.message));

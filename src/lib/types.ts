@@ -8,3 +8,10 @@ export interface AppBindings {
 }
 
 export type AppOpenAPI = OpenAPIHono<AppBindings>;
+
+export interface SystemSettings {
+  id: number;
+  status: boolean;
+  reading_interval: number;
+  refresh_rate: number;
+}
