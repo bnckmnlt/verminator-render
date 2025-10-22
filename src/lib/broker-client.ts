@@ -104,14 +104,23 @@ function handleSystemSettings(rawMessage: string) {
 
 async function handleSystemLog(message: any) {
   const result = parsePayloadDefault(message);
+  if (!result || !result.content || !result.type) {
+    console.warn("⚠️ Skipping log: invalid or incomplete payload.", result);
+    return;
+  }
+
   const severity = parseLogSeverity(result.type);
+  if (!severity) {
+    console.warn("⚠️ Skipping log: could not determine severity.", result.type);
+    return;
+  }
 
   handleRelayFeedback(result.content, client);
 
   await db.execute(sql`
     SELECT setval(
       pg_get_serial_sequence('reading_log', 'id'),
-      (SELECT MAX(id) FROM reading_log)
+      (SELECT COALESCE(MAX(id), 1) FROM reading_log)
     );
   `);
 
@@ -123,6 +132,7 @@ async function handleSystemLog(message: any) {
 
   console.log(`✅ Stored system log successfully`);
 }
+
 
 async function handleLayerData(topic: string, data: any) {
   if (!systemStatus) {
