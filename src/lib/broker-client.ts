@@ -133,7 +133,6 @@ async function handleSystemLog(message: any) {
   console.log(`✅ Stored system log successfully`);
 }
 
-
 async function handleLayerData(topic: string, data: any) {
   if (!systemStatus) {
     console.log(`⏸ Skipped storing: system inactive (${topic})`);
@@ -157,7 +156,7 @@ async function handleLayerData(topic: string, data: any) {
     });
     if (latest) {
       const last = new Date(latest.createdAt).getTime();
-      if (now - last < 5 * 60 * 1000) {
+      if (now - last < 10 * 60 * 1000) {
         console.log(
           `⏳ Skipped storing: ${layer} last stored at ${formatDateLog(
             latest.createdAt,
@@ -222,7 +221,7 @@ async function handleWormData(parsed: any) {
     });
     if (latest) {
       const last = new Date(latest.createdAt).getTime();
-      if (now - last < 5 * 60 * 1000) {
+      if (now - last < 10 * 60 * 1000) {
         console.log(
           `⏳ Skipped storing: worm activity last stored at ${formatDateLog(
             latest.createdAt,
