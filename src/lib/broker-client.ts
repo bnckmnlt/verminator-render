@@ -14,6 +14,7 @@ import { parsePayloadDefault } from "@/utils/parse-payload";
 import type { SystemSettings } from "./types";
 
 import { brokerOptions } from "./constants";
+import { SystemStatus } from "./types";
 
 const mqttTopics = [
   "system/settings",
@@ -26,7 +27,7 @@ const mqttTopics = [
 
 let systemStatus: SystemSettings = {
   id: 0,
-  status: false,
+  status: SystemStatus.idle,
   reading_interval: 0,
   refresh_rate: 0,
 };
@@ -86,19 +87,29 @@ function handleSystemSettings(rawMessage: string) {
     }
 
     if (typeof payload.status === "string") {
-      systemStatus.status = payload.status === "active";
+      switch (payload.status.toLowerCase()) {
+        case "feeding":
+          systemStatus.status = SystemStatus.feeding;
+          break;
+        case "active":
+          systemStatus.status = SystemStatus.active;
+          break;
+        default:
+          systemStatus.status = SystemStatus.idle;
+          break;
+      }
     }
 
     if (typeof payload.reading_interval !== "undefined") {
       systemStatus.reading_interval = Number(payload.reading_interval);
     }
 
-    if (typeof payload.refresh_rate === "undefined") {
+    if (typeof payload.refresh_rate !== "undefined") {
       systemStatus.refresh_rate = Number(payload.refresh_rate);
     }
   }
   catch (error) {
-    console.error("Invalid system status message:", error);
+    console.error("Invalid system settings message:", error);
   }
 }
 
@@ -134,7 +145,7 @@ async function handleSystemLog(message: any) {
 }
 
 async function handleLayerData(topic: string, data: any) {
-  if (!systemStatus) {
+  if (systemStatus.status !== SystemStatus.active) {
     console.log(`⏸ Skipped storing: system inactive (${topic})`);
     return;
   }
@@ -187,7 +198,7 @@ async function handleLayerData(topic: string, data: any) {
 }
 
 async function handleWormData(parsed: any) {
-  if (!systemStatus) {
+  if (systemStatus.status !== SystemStatus.active) {
     console.log("⏸ Skipped storing: system inactive (worms)");
     return;
   }
@@ -249,7 +260,7 @@ async function handleWormData(parsed: any) {
 client.on("reconnect", () => console.log("🔄 Reconnecting to broker..."));
 client.on("disconnect", () => {
   console.log("🚫 Disconnected from broker");
-  systemStatus.status = false;
+  systemStatus.status = SystemStatus.idle;
 });
 client.on("offline", () => console.log("⚠️ MQTT client offline"));
 client.on("error", err => console.error("❌ MQTT error:", err.message));

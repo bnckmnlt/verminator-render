@@ -9,9 +9,15 @@ export interface AppBindings {
 
 export type AppOpenAPI = OpenAPIHono<AppBindings>;
 
+export enum SystemStatus {
+  feeding,
+  idle,
+  active,
+}
+
 export interface SystemSettings {
   id: number;
-  status: boolean;
+  status: SystemStatus;
   reading_interval: number;
   refresh_rate: number;
 }
