@@ -88,12 +88,15 @@ function handleSystemSettings(rawMessage: string) {
     if (typeof payload.status === "string") {
       switch (payload.status.toLowerCase()) {
         case "feeding":
+          console.log("💻 System status to feeding");
           systemStatus.status = SystemStatus.feeding;
           break;
         case "active":
+          console.log("💻 System status to active");
           systemStatus.status = SystemStatus.active;
           break;
         default:
+          console.log("💻 System status to idle");
           systemStatus.status = SystemStatus.idle;
           break;
       }
