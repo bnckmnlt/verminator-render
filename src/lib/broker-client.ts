@@ -47,12 +47,11 @@ client.on("message", async (topic, messageBuffer) => {
   const rawMessage = messageBuffer.toString();
 
   try {
-    if (topic === "system/settings") {
-      handleSystemSettings(rawMessage);
-      return;
-    }
-
     switch (topic) {
+      case "system/settings":
+        handleSystemSettings(rawMessage);
+        break;
+
       case "system/log":
         handleSystemLog(rawMessage);
         break;
